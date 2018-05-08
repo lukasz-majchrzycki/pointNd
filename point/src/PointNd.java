@@ -3,44 +3,32 @@ import java.lang.Number;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.ArrayList;
 
 public class PointNd <T extends Number> {
-private T[] x;
+	
+private ArrayList<T> x=new ArrayList<T>();
 
 private enum CoordSystem {
-	CARTESIAN,
 	CYLINDRICAL,
 	SPHERICAL,
-	CIRCULAR;
+	POLAR;
 }
 
 // Constructor
 
-/*public PointNd() {	//Point 2d={0;0}
-	this(2);
-	N=2;
-}
-
-@SuppressWarnings("unchecked")
-public PointNd(int N) {		//Point Nd={0;...;0} 
-	//this.x= (T[]) new Number [N];
-	this.x=(T[]) Array.newInstance(this.x.getClass(), x.length);
-	for(int i=0;i<N;i++)
-		this.x[i]= this.createZeroNumber(x); 
-	this.N=N;
-}*/
 
 @SuppressWarnings({ "unchecked" })
 public PointNd(T ...x) {		//Point Nd={x[0]; x[1]; ... ; x[n]}
-	this.x= (T[]) new Number [x.length];
-
+	
 	for(int i=0;i<x.length;i++) {
-		this.x[i]=x[i];
+		this.x.add(x[i]);
 	}
 }
 
+@SuppressWarnings("unchecked")
 public PointNd(PointNd<T> p) {
-	this(p.x);
+	this((T[]) p.x.toArray());
 }
 
 // Setter
@@ -48,7 +36,7 @@ public PointNd(PointNd<T> p) {
 public int SetPoint(int poz, T x) {
 	
 	try {
-		this.x[poz]=x;
+		this.x.set(poz, x);
 	} 
 	catch (ArrayIndexOutOfBoundsException e) {
 		return -1;
@@ -60,7 +48,7 @@ public int SetPoint(int poz, T x) {
 public int SetPoint(T ...x) {
 	try {
 		for(int i=0;i<x.length;i++)
-			this.x[i]=x[i];
+			this.x.set(i+1, x[i]);
 		}
 		
 	catch (ArrayIndexOutOfBoundsException e){
@@ -69,43 +57,22 @@ public int SetPoint(T ...x) {
 return x.length;
 }
 
-@SuppressWarnings({ "deprecation", "unchecked" })
+
 public int SetN(int N) {
-	T[] newx=(T[]) Array.newInstance(this.x[0].getClass(), N);
-	int j=0;
-	int i=this.x.length;
-	System.arraycopy(this.x, 0, newx, 0, i);
-	
-	try
-	{
-	for(;i<N;i++, j++) {
-		newx[i]=newx[i-1];
-	
-		if(newx[i] instanceof Long)
-			newx[i]= (T) new Long(0);
-		else 	if(newx[i] instanceof Integer)
-			newx[i]= (T) new Integer(0);
-		else 	if(newx[i] instanceof Short)
-			newx[i]= (T) new Short((short)0);
-		else 	if(newx[i] instanceof Byte)
-			newx[i]= (T) new Byte((byte)0);
-		else 	if(newx[i] instanceof Double)
-			newx[i]= (T) new Double(0.0d);
-		else 	if(newx[i] instanceof Float)
-			newx[i]= (T) new Float(0.0f);
-		
-		else if (newx[i] instanceof BigInteger)
-			newx[i]= (T)  BigInteger.ZERO;	
-		
-		else newx[i]= null;	
+	int j, i=this.x.size();
+	if(i<N) {
+		this.x.ensureCapacity(N);
+		for(j=i;j<N;j++) {
+			this.x.add(j,this.setZero(this.x.get(0)));
+		}
 	}
-	this.x=newx;
+	else if (i>N) {
+		for(j=i;j>N;j--) {
+			this.x.remove(j-1);
+		}
 	}
-	catch (IndexOutOfBoundsException e)
-	{
-		return -1;
-	}
-	return j;
+
+	return N-i;
 }
 
 
@@ -113,13 +80,56 @@ public int SetN(int N) {
 //Getter
 public T GetPoint(int i)
 {
-	return this.x[i];
+	return this.x.get(i);
 
 }
 
 public int GetN() {
-	return this.x.length;
+	return this.x.size();
 }
+
+public ArrayList<Double> changeCoordSystem(CoordSystem sys) throws ArithmeticException{
+	
+	ArrayList<Double> newSys = new ArrayList<Double>();
+	double old[]=new double[3];
+	for(int i=0;i<3;i++) {
+	try{
+		old[i]=this.x.get(i).doubleValue();
+	}	catch(ArrayIndexOutOfBoundsException e) {
+		old[i]=0.0;
+	}
+	}
+	
+	switch (sys) {
+	case CYLINDRICAL: case POLAR:
+		if(this.x.size()==3||this.x.size()==2) {
+
+			newSys.add(Math.sqrt(Math.pow(old[0], 2)+Math.pow(old[1], 2)));		//radius
+			newSys.add(Math.atan2(old[1],old[0]  ));							//azimuth
+			if(this.x.size()==3) {
+				newSys.add(old[2]);												//height
+			}
+			return newSys;
+		}else throw new ArithmeticException();
+		
+	case SPHERICAL:{
+		if(this.x.size()==3) {
+			
+			newSys.add(Math.sqrt(Math.pow(old[0], 2)+Math.pow(old[1], 2)+Math.pow(old[2], 2)));		//radius 
+			newSys.add(Math.atan2(old[1],old[0]  ));												//azimuth 
+			newSys.add(Math.acos(old[2]/newSys.get(0)  ));											//inclination 																	//inclination 
+			return newSys;
+		}else throw new ArithmeticException();
+	}
+		
+	default:
+		break;
+	}
+	
+		
+	return null;
+}
+
 //Utilities
 
 private <U extends Number> T add(T x, U y) {
@@ -151,18 +161,42 @@ private T convert(BigDecimal c, Number y) {
 	else return null;
 }
 
+
+@SuppressWarnings({ "deprecation", "unchecked" })
+private T setZero(Number y) {
+	if(y instanceof Long)
+		return (T) new Long(0);
+	else 	if(y instanceof Integer)
+		return(T) new Integer(0);
+	else 	if(y instanceof Short)
+		return (T) new Short((short)0);
+	else 	if(y instanceof Byte)
+		return (T) new Byte((byte)0);
+	else 	if(y instanceof Double)
+		return (T) new Double(0.0d);
+	else 	if(y instanceof Float)
+		return (T) new Float(0.0f);
+	
+	else if (y instanceof BigInteger)
+		return (T)  BigInteger.ZERO;	
+	
+	else return null;
+}
+
 @SuppressWarnings("unchecked")
 public <U extends Number> int Translate (U ...x) {
 	int i;
-	if(x.length<=this.x.length)
-		for(i=0;i<x.length;i++) this.x[i]=this.add(this.x[i], x[i]);
-	else
-		for(i=0;i<this.x.length;i++) this.x[i]=this.add(this.x[i], x[i]);
+	int m=Math.min(x.length, this.x.size());
+	
+		for(i=0;i<m;i++) {
+			this.x.set(i, this.add(this.x.get(i), x[i]));
+		}
 	return i;
 }
 
+@SuppressWarnings("unchecked")
 public <U extends Number> int Translate (PointNd<U> p) {
-	return Translate(p.x);
+	return Translate((T[]) p.x.toArray());
 }
 
 }
